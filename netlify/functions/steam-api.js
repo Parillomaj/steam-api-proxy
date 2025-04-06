@@ -58,6 +58,10 @@ exports.handler = async function(event, context) {
       case 'featured':
         url = `https://store.steampowered.com/api/featured/?key=${STEAM_API_KEY}`;
         break;
+      // In your switch statement, add this new case:
+      case 'upcoming':
+        url = `https://store.steampowered.com/api/featured/comingsoon/?key=${STEAM_API_KEY}`;
+        break;
       default:
         return {
           statusCode: 400,
