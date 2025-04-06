@@ -1,0 +1,8 @@
+{
+  "name": "steam-api-proxy",
+  "version": "1.0.0",
+  "description": "Steam API proxy for WordPress",
+  "dependencies": {
+    "node-fetch": "^2.6.7"
+  }
+}
