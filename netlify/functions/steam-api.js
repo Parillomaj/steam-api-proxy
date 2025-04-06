@@ -11,10 +11,6 @@ exports.handler = async function(event, context) {
   // Get the API key from environment variables
   const STEAM_API_KEY = process.env.STEAM_API_KEY;
   
-  // Log debugging info (visible in Netlify Functions logs)
-  console.log('Function called with params:', event.queryStringParameters);
-  console.log('API Key available:', !!STEAM_API_KEY);
-  
   try {
     // Parse query parameters
     const params = event.queryStringParameters || {};
@@ -40,8 +36,9 @@ exports.handler = async function(event, context) {
     // Handle different API endpoints
     let url = '';
     switch(endpoint) {
-      case 'featured':
-        url = `https://api.steampowered.com/ISteamApps/GetFeaturedCategories/v1/?key=${STEAM_API_KEY}`;
+      case 'newreleases':
+        // Get top selling games, which includes new releases
+        url = `https://store.steampowered.com/api/featuredcategories/?key=${STEAM_API_KEY}`;
         break;
       case 'appdetails':
         const appId = params.appid;
@@ -54,8 +51,12 @@ exports.handler = async function(event, context) {
         }
         url = `https://store.steampowered.com/api/appdetails?appids=${appId}`;
         break;
-      case 'featuredgames':
-        url = `https://api.steampowered.com/ISteamApps/GetFeaturedGames/v1/?key=${STEAM_API_KEY}`;
+      case 'deals':
+        // Get specials
+        url = `https://store.steampowered.com/api/featuredcategories/?key=${STEAM_API_KEY}`;
+        break;
+      case 'featured':
+        url = `https://store.steampowered.com/api/featured/?key=${STEAM_API_KEY}`;
         break;
       default:
         return {
@@ -64,8 +65,6 @@ exports.handler = async function(event, context) {
           body: JSON.stringify({ error: 'Invalid endpoint parameter' })
         };
     }
-    
-    console.log('Fetching URL:', url.replace(STEAM_API_KEY, 'REDACTED'));
     
     // Fetch data from Steam API
     const response = await fetch(url);
@@ -82,11 +81,28 @@ exports.handler = async function(event, context) {
     
     const data = await response.json();
     
+    // Process the data based on endpoint
+    let processedData = data;
+    
+    if (endpoint === 'newreleases') {
+      // Extract new releases from the featured categories
+      const newReleases = data.new_releases || data.top_sellers || {};
+      processedData = {
+        items: newReleases.items || []
+      };
+    } else if (endpoint === 'deals') {
+      // Extract specials from the featured categories
+      const specials = data.specials || {};
+      processedData = {
+        items: specials.items || []
+      };
+    }
+    
     // Return API response
     return {
       statusCode: 200,
       headers,
-      body: JSON.stringify(data)
+      body: JSON.stringify(processedData)
     };
   } catch (error) {
     console.error('Error in function:', error);
