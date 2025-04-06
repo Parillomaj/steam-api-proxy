@@ -63,7 +63,7 @@ exports.handler = async function(event, context) {
         url = `https://store.steampowered.com/api/featured/comingsoon/?key=${STEAM_API_KEY}`;
         break;
       case 'popularupcoming':
-        url = `https://store.steampowered.com/search/results/?query&start=0&count=12&dynamic_data=&sort_by=_ASC&os=win%2Cmac%2Clinux&supportedlang=english&snr=1_7_7_popularcomingsoon_7&filter=popularcomingsoon&infinite=1`;
+        url = `https://store.steampowered.com/api/featuredcategories`;
         break;
       default:
         return {
