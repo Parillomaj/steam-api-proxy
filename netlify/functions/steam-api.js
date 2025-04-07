@@ -25,7 +25,7 @@ exports.handler = async function(event, context) {
       };
     }
     
-    if (!STEAM_API_KEY) {
+    if (!STEAM_API_KEY && !['customurl', 'popularupcoming'].includes(endpoint)) {
       return {
         statusCode: 500,
         headers,
@@ -35,6 +35,8 @@ exports.handler = async function(event, context) {
     
     // Handle different API endpoints
     let url = '';
+    let responseType = 'json'; // Default response type
+    
     switch(endpoint) {
       case 'newreleases':
         // Get top selling games, which includes new releases
@@ -58,12 +60,33 @@ exports.handler = async function(event, context) {
       case 'featured':
         url = `https://store.steampowered.com/api/featured/?key=${STEAM_API_KEY}`;
         break;
-      // In your switch statement, add this new case:
       case 'upcoming':
         url = `https://store.steampowered.com/api/featured/comingsoon/?key=${STEAM_API_KEY}`;
         break;
       case 'popularupcoming':
         url = `https://store.steampowered.com/api/featuredcategories`;
+        break;
+      case 'customurl':
+        // New endpoint to handle custom Steam URLs
+        const customUrl = params.url;
+        if (!customUrl) {
+          return {
+            statusCode: 400,
+            headers,
+            body: JSON.stringify({ error: 'Missing url parameter' })
+          };
+        }
+        url = customUrl;
+        responseType = 'html'; // Change response type to HTML
+        // Update headers for HTML response
+        headers['Content-Type'] = 'text/html';
+        break;
+      case 'wishlistpopular':
+        // Direct endpoint specifically for popular upcoming games by wishlist
+        url = 'https://store.steampowered.com/search/?filter=popularwishlist&category1=998&os=win&coming_soon=1';
+        responseType = 'html'; // Change response type to HTML
+        // Update headers for HTML response
+        headers['Content-Type'] = 'text/html';
         break;
       default:
         return {
@@ -73,12 +96,24 @@ exports.handler = async function(event, context) {
         };
     }
     
-    // Fetch data from Steam API
-    const response = await fetch(url);
+    // Fetch data from Steam
+    const fetchOptions = {
+      headers: {
+        // Steam may reject requests without proper user-agent
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+      }
+    };
+    
+    const response = await fetch(url, fetchOptions);
+    
     if (!response.ok) {
       return {
         statusCode: response.status,
-        headers,
+        headers: {
+          'Access-Control-Allow-Origin': '*',
+          'Access-Control-Allow-Headers': 'Content-Type',
+          'Content-Type': 'application/json'
+        },
         body: JSON.stringify({ 
           error: `Steam API returned ${response.status} status`,
           details: await response.text()
@@ -86,37 +121,56 @@ exports.handler = async function(event, context) {
       };
     }
     
-    const data = await response.json();
-    
-    // Process the data based on endpoint
-    let processedData = data;
-    
-    if (endpoint === 'newreleases') {
-      // Extract new releases from the featured categories
-      const newReleases = data.new_releases || data.top_sellers || {};
-      processedData = {
-        items: newReleases.items || []
+    // Process response based on type
+    if (responseType === 'html') {
+      const htmlContent = await response.text();
+      return {
+        statusCode: 200,
+        headers,
+        body: htmlContent
       };
-    } else if (endpoint === 'deals') {
-      // Extract specials from the featured categories
-      const specials = data.specials || {};
-      processedData = {
-        items: specials.items || []
+    } else {
+      // JSON response type
+      const data = await response.json();
+      
+      // Process the data based on endpoint
+      let processedData = data;
+      
+      if (endpoint === 'newreleases') {
+        // Extract new releases from the featured categories
+        const newReleases = data.new_releases || data.top_sellers || {};
+        processedData = {
+          items: newReleases.items || []
+        };
+      } else if (endpoint === 'deals') {
+        // Extract specials from the featured categories
+        const specials = data.specials || {};
+        processedData = {
+          items: specials.items || []
+        };
+      }
+      
+      // Return API response
+      return {
+        statusCode: 200,
+        headers: {
+          'Access-Control-Allow-Origin': '*',
+          'Access-Control-Allow-Headers': 'Content-Type',
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(processedData)
       };
     }
-    
-    // Return API response
-    return {
-      statusCode: 200,
-      headers,
-      body: JSON.stringify(processedData)
-    };
   } catch (error) {
     console.error('Error in function:', error);
     // Handle errors
     return {
       statusCode: 500,
-      headers,
+      headers: {
+        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Headers': 'Content-Type',
+        'Content-Type': 'application/json'
+      },
       body: JSON.stringify({ 
         error: 'An error occurred fetching data from Steam API',
         details: error.message
